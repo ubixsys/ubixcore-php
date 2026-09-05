@@ -42,10 +42,11 @@ build-8.5: { extends: .build, variables: { PHP_VERSION: "8.5" } }
   script:
     - |
       set -euo pipefail
+      [ -n "${UBIXVAULT_CI_TOKEN_PROD:-}" ] || { echo "UBIXVAULT_CI_TOKEN_PROD is not set on this project (masked + protected CI variable)"; exit 1; }
       vault_kv() { curl -sS -m 10 -H "X-Vault-Token: $UBIXVAULT_CI_TOKEN_PROD" "$UBIXVAULT_ADDR_PROD/v1/secret/data/ubixcore-php/$1" \
-        | python3 -c "import json,sys; print(json.load(sys.stdin)['data']['data'].get('$2',''))"; }
+        | python3 -c "import json,sys; d=json.load(sys.stdin); print(d['data']['data'].get('$2','')) if 'data' in d else sys.stderr.write('vault: %s\n' % d.get('errors', d))"; }
       GHCR_USER="$(vault_kv ghcr username)"; GHCR_TOKEN="$(vault_kv ghcr token)"
-      [ -n "$GHCR_TOKEN" ] || { echo "no ghcr credentials in vault (secret/ubixcore-php/ghcr)"; exit 1; }
+      [ -n "$GHCR_TOKEN" ] || { echo "no ghcr credentials readable at secret/ubixcore-php/ghcr — run ubixcore-php-vault-setup.sh and check the token's policy"; exit 1; }
       echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
       DATE="$(date -u +%Y%m%d)"
       TAGS="-t $CI_REGISTRY_IMAGE:$PHP_VERSION -t $CI_REGISTRY_IMAGE:$PHP_VERSION-$DATE -t $PUBLIC_IMAGE:$PHP_VERSION -t $PUBLIC_IMAGE:$PHP_VERSION-$DATE"
