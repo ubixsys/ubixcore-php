@@ -1,0 +1,60 @@
+# ubixcore-php — the uBixCore PHP runtime image.
+#
+#   build   every branch: multi-arch build of each PHP line, pushed to this
+#           project's GitLab registry as <version>-<branch>  (e.g. 8.5-dev)
+#   release main only: the same build pushed as <version>, <version>-<date>
+#           and latest to BOTH the GitLab registry and the public
+#           ghcr.io/ubixsys/ubixcore-php
+#
+# The ghcr.io credentials are read from uBixVault secret/ubixcore-php/ghcr
+# (username, token = a GitHub PAT with write:packages) with the read-only CI
+# token UBIXVAULT_CI_TOKEN_PROD (masked GitLab variable). Nothing else is
+# configured in GitLab.
+
+stages: [build, release]
+
+variables:
+  PLATFORMS: linux/amd64,linux/arm64
+  PUBLIC_IMAGE: ghcr.io/ubixsys/ubixcore-php
+  UBIXVAULT_ADDR_PROD: https://vault.prod.ubixsys.com
+
+.login:
+  before_script:
+    - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" "$CI_REGISTRY"
+
+.build:
+  extends: .login
+  stage: build
+  tags: [shell]
+  script:
+    - docker buildx build --provenance=false --sbom=false --platform "$PLATFORMS" --push
+        -t "$CI_REGISTRY_IMAGE:$PHP_VERSION-$CI_COMMIT_REF_SLUG" "$PHP_VERSION/"
+  rules:
+    - changes: ["$PHP_VERSION/**/*", .gitlab-ci.yml]
+
+build-8.4: { extends: .build, variables: { PHP_VERSION: "8.4" } }
+build-8.5: { extends: .build, variables: { PHP_VERSION: "8.5" } }
+
+.release:
+  extends: .login
+  stage: release
+  tags: [shell]
+  script:
+    - |
+      set -euo pipefail
+      vault_kv() { curl -sS -m 10 -H "X-Vault-Token: $UBIXVAULT_CI_TOKEN_PROD" "$UBIXVAULT_ADDR_PROD/v1/secret/data/ubixcore-php/$1" \
+        | python3 -c "import json,sys; print(json.load(sys.stdin)['data']['data'].get('$2',''))"; }
+      GHCR_USER="$(vault_kv ghcr username)"; GHCR_TOKEN="$(vault_kv ghcr token)"
+      [ -n "$GHCR_TOKEN" ] || { echo "no ghcr credentials in vault (secret/ubixcore-php/ghcr)"; exit 1; }
+      echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
+      DATE="$(date -u +%Y%m%d)"
+      TAGS="-t $CI_REGISTRY_IMAGE:$PHP_VERSION -t $CI_REGISTRY_IMAGE:$PHP_VERSION-$DATE -t $PUBLIC_IMAGE:$PHP_VERSION -t $PUBLIC_IMAGE:$PHP_VERSION-$DATE"
+      [ "$PHP_VERSION" = "$LATEST" ] && TAGS="$TAGS -t $CI_REGISTRY_IMAGE:latest -t $PUBLIC_IMAGE:latest"
+      docker buildx build --provenance=false --sbom=false --platform "$PLATFORMS" --push $TAGS "$PHP_VERSION/"
+      docker logout ghcr.io
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      changes: ["$PHP_VERSION/**/*", .gitlab-ci.yml]
+
+release-8.4: { extends: .release, variables: { PHP_VERSION: "8.4", LATEST: "8.5" } }
+release-8.5: { extends: .release, variables: { PHP_VERSION: "8.5", LATEST: "8.5" } }
