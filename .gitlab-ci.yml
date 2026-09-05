@@ -9,7 +9,7 @@
 # The ghcr.io credentials are read from uBixVault secret/ubixcore-php/ghcr
 # (username, token = a GitHub PAT with write:packages) with the read-only CI
 # token UBIXVAULT_CI_TOKEN_PROD (masked GitLab variable). Nothing else is
-# configured in GitLab.
+# configured in GitLab. First public release: 2026-09-05.
 
 stages: [build, release]
 
