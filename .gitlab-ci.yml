@@ -59,3 +59,5 @@ build-8.5: { extends: .build, variables: { PHP_VERSION: "8.5" } }
 
 release-8.4: { extends: .release, variables: { PHP_VERSION: "8.4", LATEST: "8.5" } }
 release-8.5: { extends: .release, variables: { PHP_VERSION: "8.5", LATEST: "8.5" } }
+
+# pipeline: variable check 2026-09-05
