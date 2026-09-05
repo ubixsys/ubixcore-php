@@ -63,8 +63,8 @@ RUN ln -sf /dev/stdout /var/log/nginx/access.log && ln -sf /dev/stderr /var/log/
 
 # Unprivileged runtime user; /web/root is the document root your image COPYs into
 RUN adduser -D -g 'www' www \
-    && chown -R www:www /run /var/lib/nginx /var/tmp/nginx /var/log/nginx \
-    && mkdir -p /web/root /logs && chown -R www:www /web /logs
+    && mkdir -p /run /var/lib/nginx /var/tmp/nginx /var/log/nginx /web/root /logs \
+    && chown -R www:www /run /var/lib/nginx /var/tmp/nginx /var/log/nginx /web /logs
 
 EXPOSE 8080
 HEALTHCHECK --timeout=10s CMD curl --silent --fail http://127.0.0.1:8080/fpm-ping
